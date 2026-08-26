@@ -14,7 +14,7 @@ const UNITS = ['قطعة', 'لتر', 'كجم', 'جرام', 'متر', 'رول', '
 const defaultForm: ProductFormData & { unit: string } = {
   name: '', code: '', category_id: '', quantity: 0,
   length_cm: '', width_cm: '', height_cm: '',
-  size: '', base_price: '', margin_pct: '', image_url: '', unit: 'قطعة',
+  size: '', base_price: '', margin_pct: '', image_url: '', unit: 'قطعة', final_price: '',
 };
 
 export default function ProductForm({ product, onClose, onSaved }: Props) {
@@ -22,6 +22,7 @@ export default function ProductForm({ product, onClose, onSaved }: Props) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [manualFinalPrice, setManualFinalPrice] = useState(false);
 
   useEffect(() => {
     supabase.from('categories').select('*').order('sort_order').then(({ data }) => {
@@ -39,13 +40,17 @@ export default function ProductForm({ product, onClose, onSaved }: Props) {
         size: product.size ?? '',
         base_price: product.base_price.toString(),
         margin_pct: product.margin_pct.toString(),
+        final_price: product.final_price.toString(),
         image_url: product.image_url ?? '',
         unit: (product as any).unit ?? 'قطعة',
       });
+      const calculatedPrice = product.base_price * (1 + product.margin_pct / 100);
+      setManualFinalPrice(Math.abs(product.final_price - calculatedPrice) > 0.01);
     }
   }, [product]);
 
-  const finalPrice = (parseFloat(form.base_price) || 0) * (1 + (parseFloat(form.margin_pct) || 0) / 100);
+  const calculatedFinalPrice = (parseFloat(form.base_price) || 0) * (1 + (parseFloat(form.margin_pct) || 0) / 100);
+  const finalPrice = manualFinalPrice && form.final_price ? parseFloat(form.final_price) : calculatedFinalPrice;
 
   function set(key: string, value: string | number) {
     setForm(f => ({ ...f, [key]: value }));
@@ -77,6 +82,7 @@ export default function ProductForm({ product, onClose, onSaved }: Props) {
       margin_pct: parseFloat(form.margin_pct) || 0,
       image_url: form.image_url || null,
       unit: form.unit || 'قطعة',
+      ...(manualFinalPrice && form.final_price ? { final_price: parseFloat(form.final_price) } : {}),
     };
 
     let error;
@@ -199,10 +205,17 @@ export default function ProductForm({ product, onClose, onSaved }: Props) {
                 </div>
               </div>
               <div>
-                <label className="label">السعر النهائي (محسوب)</label>
-                <div className="bg-teal-50 dark:bg-teal-900/30 border border-teal-100 dark:border-teal-800 rounded-xl px-4 py-2.5 text-teal-700 dark:text-teal-300 font-bold text-sm">
-                  {finalPrice.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج
-                </div>
+                <label className="label flex items-center gap-2">
+                  <input type="checkbox" checked={manualFinalPrice} onChange={e => setManualFinalPrice(e.target.checked)} />
+                  السعر النهائي يدويا
+                </label>
+                {manualFinalPrice ? (
+                  <input type="number" min="0" step="0.01" value={form.final_price} onChange={e => set('final_price', e.target.value)} className="input" placeholder="0.00" />
+                ) : (
+                  <div className="bg-teal-50 dark:bg-teal-900/30 border border-teal-100 dark:border-teal-800 rounded-xl px-4 py-2.5 text-teal-700 dark:text-teal-300 font-bold text-sm">
+                    {finalPrice.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج
+                  </div>
+                )}
               </div>
             </div>
           </div>

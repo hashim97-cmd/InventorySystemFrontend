@@ -11,16 +11,16 @@ type Props = {
 };
 
 const navItems: { id: Page; label: string; icon: React.ReactNode }[] = [
-  { id: 'dashboard',  label: 'لوحة التحكم', icon: <LayoutDashboard size={19} /> },
-  { id: 'products',   label: 'المنتجات',    icon: <Package size={19} /> },
-  { id: 'categories', label: 'الأقسام',     icon: <Layers size={19} /> },
-  { id: 'reports',    label: 'التقارير',    icon: <BarChart2 size={19} /> },
-  { id: 'settings',   label: 'الإعدادات',  icon: <Settings size={19} /> },
+  { id: 'dashboard', label: 'لوحة التحكم', icon: <LayoutDashboard size={19} /> },
+  { id: 'products', label: 'المنتجات', icon: <Package size={19} /> },
+  { id: 'categories', label: 'الأقسام', icon: <Layers size={19} /> },
+  { id: 'reports', label: 'التقارير', icon: <BarChart2 size={19} /> },
+  { id: 'settings', label: 'الإعدادات', icon: <Settings size={19} /> },
 ];
 
 export default function Sidebar({ currentPage, onNavigate, isOpen, onClose }: Props) {
-  const { session, signOut } = useAuth();
-  const email = session?.user?.email ?? '';
+  const { user, signOut } = useAuth();
+  const email = user?.email ?? '';
   const initials = email.slice(0, 1).toUpperCase() || 'م';
 
   return (
@@ -72,7 +72,7 @@ export default function Sidebar({ currentPage, onNavigate, isOpen, onClose }: Pr
             </div>
             <div className="flex-1 min-w-0">
               <p className="text-sm font-semibold text-slate-700 dark:text-slate-200 truncate">{email || 'مدير النظام'}</p>
-              <p className="text-xs text-slate-400 dark:text-slate-500">مسؤول</p>
+              <p className="text-xs text-slate-400 dark:text-slate-500">{user?.role === 'admin' ? 'مسؤول' : 'مستخدم'}</p>
             </div>
             <button onClick={signOut} className="btn-icon shrink-0" title="تسجيل الخروج">
               <LogOut size={16} />

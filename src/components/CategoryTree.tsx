@@ -45,11 +45,10 @@ export default function CategoryTree({ nodes, level = 0, productCounts, onAddChi
       {level > 0 && (
         <div className="absolute top-0 bottom-0 right-0 w-px bg-slate-100 dark:bg-slate-700" style={{ right: '-1px' }} />
       )}
-      {nodes.map((node, idx) => {
+      {nodes.map(node => {
         const hasChildren = (node.children?.length ?? 0) > 0;
         const isCollapsed = collapsed[node.id];
         const count = productCounts[node.id] ?? 0;
-        const isLast = idx === nodes.length - 1;
 
         return (
           <div key={node.id} className="relative">
@@ -70,9 +69,8 @@ export default function CategoryTree({ nodes, level = 0, productCounts, onAddChi
               {/* Expand toggle */}
               <button
                 onClick={() => setCollapsed(p => ({ ...p, [node.id]: !isCollapsed }))}
-                className={`w-6 h-6 flex items-center justify-center rounded-lg transition-colors shrink-0 ${
-                  hasChildren ? 'text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700' : 'opacity-0 pointer-events-none'
-                }`}
+                className={`w-6 h-6 flex items-center justify-center rounded-lg transition-colors shrink-0 ${hasChildren ? 'text-slate-500 dark:text-slate-400 hover:bg-white dark:hover:bg-slate-700' : 'opacity-0 pointer-events-none'
+                  }`}
               >
                 {hasChildren ? (
                   isCollapsed ? <ChevronLeft size={14} /> : <ChevronDown size={14} />
@@ -82,17 +80,16 @@ export default function CategoryTree({ nodes, level = 0, productCounts, onAddChi
               {/* Folder icon */}
               <div className={`w-6 h-6 rounded-md flex items-center justify-center shrink-0 ${DEPTH_COLORS[colorIdx]} bg-opacity-10`}>
                 {hasChildren && !isCollapsed
-                  ? <FolderOpen size={13} className={`text-${['teal','blue','violet','rose','amber'][colorIdx]}-600 dark:text-${['teal','blue','violet','rose','amber'][colorIdx]}-400`} />
-                  : <Folder size={13} className={`text-${['teal','blue','violet','rose','amber'][colorIdx]}-600 dark:text-${['teal','blue','violet','rose','amber'][colorIdx]}-400`} />
+                  ? <FolderOpen size={13} className={`text-${['teal', 'blue', 'violet', 'rose', 'amber'][colorIdx]}-600 dark:text-${['teal', 'blue', 'violet', 'rose', 'amber'][colorIdx]}-400`} />
+                  : <Folder size={13} className={`text-${['teal', 'blue', 'violet', 'rose', 'amber'][colorIdx]}-600 dark:text-${['teal', 'blue', 'violet', 'rose', 'amber'][colorIdx]}-400`} />
                 }
               </div>
 
               {/* Name */}
-              <span className={`flex-1 text-sm leading-tight truncate ${
-                level === 0
-                  ? 'font-bold text-slate-800 dark:text-slate-100'
-                  : 'font-medium text-slate-700 dark:text-slate-300'
-              }`}>
+              <span className={`flex-1 text-sm leading-tight truncate ${level === 0
+                ? 'font-bold text-slate-800 dark:text-slate-100'
+                : 'font-medium text-slate-700 dark:text-slate-300'
+                }`}>
                 {node.name}
               </span>
 

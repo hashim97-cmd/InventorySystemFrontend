@@ -1,15 +1,17 @@
 import { useState } from 'react';
 import { Package, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
-import { supabase } from '../lib/supabase';
+import { useRouter } from 'next/navigation';
+import { useAuth } from '../context/AuthContext';
 
 export default function AuthPage() {
-  const [mode, setMode] = useState<'signin' | 'signup'>('signin');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPw, setShowPw] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const { signIn } = useAuth();
+  const router = useRouter();
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -21,17 +23,11 @@ export default function AuthPage() {
     }
     setLoading(true);
 
-    if (mode === 'signin') {
-      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
-      if (error) setError(error.message === 'Invalid login credentials' ? 'بيانات الدخول غير صحيحة' : error.message);
-    } else {
-      const { error } = await supabase.auth.signUp({ email: email.trim(), password });
-      if (error) {
-        setError(error.message.includes('already registered') ? 'هذا البريد الإلكتروني مسجل بالفعل' : error.message);
-      } else {
-        setSuccess('تم إنشاء الحساب بنجاح. يمكنك الآن تسجيل الدخول.');
-        setMode('signin');
-      }
+    try {
+      await signIn(email.trim(), password);
+      router.push('/dashboard');
+    } catch (requestError: any) {
+      setError(requestError.response?.data?.message === 'Invalid credentials' ? 'بيانات الدخول غير صحيحة' : requestError.response?.data?.message || 'تعذر تسجيل الدخول');
     }
     setLoading(false);
   }
@@ -46,36 +42,12 @@ export default function AuthPage() {
           </div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-white">نظام إدارة المخزون</h1>
           <p className="text-slate-500 dark:text-slate-400 text-sm mt-1">
-            {mode === 'signin' ? 'سجّل دخولك للمتابعة' : 'أنشئ حسابًا جديدًا'}
+            سجّل دخولك للمتابعة
           </p>
         </div>
 
         {/* Card */}
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl border border-slate-100 dark:border-slate-700 p-8">
-          {/* Tabs */}
-          <div className="flex bg-slate-100 dark:bg-slate-700 rounded-xl p-1 mb-6">
-            <button
-              onClick={() => { setMode('signin'); setError(''); setSuccess(''); }}
-              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
-                mode === 'signin'
-                  ? 'bg-white dark:bg-slate-600 text-teal-700 dark:text-teal-300 shadow-sm'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-              }`}
-            >
-              تسجيل الدخول
-            </button>
-            <button
-              onClick={() => { setMode('signup'); setError(''); setSuccess(''); }}
-              className={`flex-1 py-2 text-sm font-semibold rounded-lg transition-all ${
-                mode === 'signup'
-                  ? 'bg-white dark:bg-slate-600 text-teal-700 dark:text-teal-300 shadow-sm'
-                  : 'text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-200'
-              }`}
-            >
-              حساب جديد
-            </button>
-          </div>
-
           {error && (
             <div className="flex items-center gap-2 bg-red-50 dark:bg-red-900/20 border border-red-100 dark:border-red-800 text-red-600 dark:text-red-400 rounded-xl px-4 py-3 mb-4 text-sm animate-fade-in">
               <AlertCircle size={16} className="shrink-0" />
@@ -108,8 +80,8 @@ export default function AuthPage() {
                   value={password}
                   onChange={e => setPassword(e.target.value)}
                   className="input pl-10"
-                  placeholder={mode === 'signup' ? '٦ أحرف على الأقل' : '••••••••'}
-                  autoComplete={mode === 'signin' ? 'current-password' : 'new-password'}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
                 />
                 <button
                   type="button"
@@ -127,7 +99,7 @@ export default function AuthPage() {
               className="w-full bg-teal-600 hover:bg-teal-700 text-white py-3 rounded-xl font-bold text-sm transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-60 mt-2"
             >
               {loading && <Loader2 size={16} className="animate-spin" />}
-              {mode === 'signin' ? 'دخول' : 'إنشاء الحساب'}
+              دخول
             </button>
           </form>
         </div>

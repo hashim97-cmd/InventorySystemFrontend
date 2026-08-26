@@ -1,6 +1,8 @@
 import { useEffect, useState } from 'react';
 import { Package, Layers, AlertTriangle, TrendingUp, ArrowLeft, Loader2 } from 'lucide-react';
 import { supabase, Product, Category, buildCategoryTree, getCategoryPath, getStockStatus } from '../lib/supabase';
+import { api } from '../lib/api';
+import Link from 'next/link';
 
 type Props = { onNavigate: (page: string) => void };
 
@@ -15,17 +17,17 @@ export default function Dashboard({ onNavigate }: Props) {
 
   async function loadData() {
     setLoading(true);
-    const [{ data: products }, { data: cats }] = await Promise.all([
-      supabase.from('products').select('*').order('created_at', { ascending: false }),
+    const [{ data: products }, { data: cats }, { data: lowStockResponse }] = await Promise.all([
+      supabase.from('products').select('*').order('created_at', { ascending: false }).range(0, 9999),
       supabase.from('categories').select('*').order('sort_order'),
+      api.get('/products/low-stock', { params: { limit: 1 } }),
     ]);
     if (products && cats) {
       const tree = buildCategoryTree(cats as Category[]);
       setCategories(tree);
-      const low = products.filter((p: Product) => p.quantity > 0 && p.quantity <= 10).length;
-      const outOf = products.filter((p: Product) => p.quantity === 0).length;
+      const low = lowStockResponse.total ?? 0;
       const totalValue = products.reduce((s: number, p: Product) => s + (p.final_price * p.quantity), 0);
-      setStats({ totalProducts: products.length, totalCategories: cats.length, lowStock: low + outOf, totalValue });
+      setStats({ totalProducts: products.length, totalCategories: cats.length, lowStock: low, totalValue });
       setRecentProducts((products as Product[]).slice(0, 7));
       const flat = cats as Category[];
       const rootCats = flat.filter((c: Category) => !c.parent_id);
@@ -52,25 +54,27 @@ export default function Dashboard({ onNavigate }: Props) {
   );
 
   const cards = [
-    { label: 'إجمالي المنتجات', value: stats.totalProducts, icon: <Package size={20} />, color: 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400', border: 'border-teal-100 dark:border-teal-900' },
-    { label: 'إجمالي الأقسام', value: stats.totalCategories, icon: <Layers size={20} />, color: 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400', border: 'border-blue-100 dark:border-blue-900' },
-    { label: 'مخزون منخفض / نفذ', value: stats.lowStock, icon: <AlertTriangle size={20} />, color: 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400', border: 'border-amber-100 dark:border-amber-900' },
-    { label: 'إجمالي قيمة المخزون', value: `${stats.totalValue.toLocaleString('ar-EG', { maximumFractionDigits: 0 })} ج`, icon: <TrendingUp size={20} />, color: 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400', border: 'border-green-100 dark:border-green-900' },
+    { label: 'إجمالي المنتجات', value: stats.totalProducts, icon: <Package size={20} />, color: 'bg-teal-50 dark:bg-teal-900/30 text-teal-700 dark:text-teal-400', border: 'border-teal-100 dark:border-teal-900', link: '/products' },
+    { label: 'إجمالي الأقسام', value: stats.totalCategories, icon: <Layers size={20} />, color: 'bg-blue-50 dark:bg-blue-900/30 text-blue-700 dark:text-blue-400', border: 'border-blue-100 dark:border-blue-900', link: "/categories" },
+    { label: 'مخزون منخفض / نفذ', value: stats.lowStock, icon: <AlertTriangle size={20} />, color: 'bg-amber-50 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400', border: 'border-amber-100 dark:border-amber-900', link: "/reports" },
+    { label: 'إجمالي قيمة المخزون', value: `${stats.totalValue.toLocaleString('ar-EG', { maximumFractionDigits: 0 })} ج`, icon: <TrendingUp size={20} />, color: 'bg-green-50 dark:bg-green-900/30 text-green-700 dark:text-green-400', border: 'border-green-100 dark:border-green-900', link: "/reports" },
   ];
 
   return (
     <div className="space-y-5">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((c, i) => (
-          <div key={i} className={`card border ${c.border} hover:shadow-md transition-shadow`}>
-            <div className="flex items-start justify-between">
-              <div>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 leading-tight">{c.label}</p>
-                <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">{c.value}</p>
+          <Link href={c.link}>
+            <div key={i} className={`card border ${c.border} hover:shadow-md transition-shadow`}>
+              <div className="flex items-start justify-between">
+                <div>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mb-2 leading-tight">{c.label}</p>
+                  <p className="text-2xl font-bold text-slate-800 dark:text-slate-100">{c.value}</p>
+                </div>
+                <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${c.color}`}>{c.icon}</div>
               </div>
-              <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${c.color}`}>{c.icon}</div>
             </div>
-          </div>
+          </Link>
         ))}
       </div>
 

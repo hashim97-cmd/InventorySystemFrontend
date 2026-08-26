@@ -1,9 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export { supabase } from './api';
 
 export type Category = {
   id: string;
@@ -31,7 +26,21 @@ export type Product = {
   image_url: string | null;
   created_at: string;
   updated_at: string;
+  unit?: string;
+  color?: string | null;
+  descrption?: string | null;
+  stockHistory?: StockHistory[];
+  stockAvailability?: string;
   category?: Category;
+};
+
+export type StockHistory = {
+  id: string;
+  productId: string;
+  change: number;
+  operation: string;
+  notes: string | null;
+  createdAt: string;
 };
 
 export type ProductFormData = {
@@ -46,6 +55,7 @@ export type ProductFormData = {
   base_price: string;
   margin_pct: string;
   image_url: string;
+  final_price?: string;
 };
 
 export function buildCategoryTree(categories: Category[]): Category[] {

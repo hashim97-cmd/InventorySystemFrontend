@@ -1,10 +1,11 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
-  Search, Plus, Package, Filter, X, Eye, Pencil, Trash2,
+  Search, Plus, Minus, Package, Filter, X, Pencil, Trash2,
   Loader2, AlertTriangle, List, Grid3X3, ChevronLeft, Home, ChevronRight,
 } from 'lucide-react';
 import { supabase, Product, Category, buildCategoryTree, getCategoryPath, getStockStatus, flattenCategories } from '../lib/supabase';
 import CategoryFilterPanel from '../components/CategoryFilterPanel';
+import { useAuth } from '../context/AuthContext';
 
 const PAGE_SIZE = 12;
 
@@ -14,9 +15,10 @@ type Props = {
   onAddProduct: () => void;
   onEditProduct: (product: Product) => void;
   onViewProduct: (product: Product) => void;
+  onStockChange: (product: Product, change: number) => Promise<void>;
 };
 
-export default function ProductsPage({ onAddProduct, onEditProduct, onViewProduct }: Props) {
+export default function ProductsPage({ onAddProduct, onEditProduct, onViewProduct, onStockChange }: Props) {
   const [view, setView] = useState<View>('list');
   const [products, setProducts] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
@@ -28,6 +30,10 @@ export default function ProductsPage({ onAddProduct, onEditProduct, onViewProduc
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [stockTarget, setStockTarget] = useState<{ product: Product; direction: 1 | -1 } | null>(null);
+  const [stockAmount, setStockAmount] = useState('');
+  const { user } = useAuth();
+  const canDelete = user?.role === 'admin' || user?.role === 'super_admin';
 
   // Browse mode state
   const [browseCatId, setBrowseCatId] = useState<string | null>(null);
@@ -83,12 +89,32 @@ export default function ProductsPage({ onAddProduct, onEditProduct, onViewProduc
   }
 
   async function handleDelete() {
-    if (!deleteTarget) return;
+    if (!deleteTarget || !canDelete) return;
     setDeleting(true);
     await supabase.from('products').delete().eq('id', deleteTarget.id);
     setDeleting(false);
     setDeleteTarget(null);
     loadProducts();
+  }
+
+  function openStockDialog(product: Product, direction: 1 | -1) {
+    setStockAmount('');
+    setStockTarget({ product, direction });
+  }
+
+  function requestStockChange(product: Product, change: number): Promise<void> {
+    openStockDialog(product, change > 0 ? 1 : -1);
+    return Promise.resolve();
+  }
+
+  async function submitStockChange() {
+    if (!stockTarget) return;
+    const amount = Number(stockAmount);
+    if (!Number.isInteger(amount) || amount <= 0) return;
+    const change = stockTarget.direction * amount;
+    if (stockTarget.product.quantity + change < 0) return;
+    await onStockChange(stockTarget.product, change);
+    setStockTarget(null);
   }
 
   function handleFilterChange(id: string) {
@@ -103,17 +129,6 @@ export default function ProductsPage({ onAddProduct, onEditProduct, onViewProduc
 
   // Browse helpers
   const flat = flattenCategories(categories);
-  function getCurrentBrowseChildren() {
-    return categories.filter(c => !c.parent_id) as Category[]
-      || flat.filter(c => c.parent_id === browseCatId) as Category[];
-  }
-
-  function getBrowseChildren(parentId: string | null): Category[] {
-    if (!parentId) return categories;
-    const parent = flat.find(c => c.id === parentId);
-    return parent?.children ?? [];
-  }
-
   function navigateBrowse(cat: Category) {
     setBrowseCatId(cat.id);
     setBrowsePath(p => [...p, cat]);
@@ -195,7 +210,9 @@ export default function ProductsPage({ onAddProduct, onEditProduct, onViewProduc
           onBreadcrumb={browseTo}
           onView={onViewProduct}
           onEdit={onEditProduct}
-          onDelete={setDeleteTarget}
+          onDelete={canDelete ? setDeleteTarget : () => undefined}
+          canDelete={canDelete}
+          onStockChange={requestStockChange}
         />
       ) : (
         <div className="flex gap-4">
@@ -255,7 +272,9 @@ export default function ProductsPage({ onAddProduct, onEditProduct, onViewProduc
                       categories={categories}
                       onView={onViewProduct}
                       onEdit={onEditProduct}
-                      onDelete={setDeleteTarget}
+                      onDelete={canDelete ? setDeleteTarget : () => undefined}
+                      canDelete={canDelete}
+                      onStockChange={requestStockChange}
                     />
                   ))}
                 </div>
@@ -264,10 +283,11 @@ export default function ProductsPage({ onAddProduct, onEditProduct, onViewProduc
                 <div className="hidden lg:block card overflow-hidden p-0">
                   <DesktopTable
                     products={products}
-                    categories={categories}
                     onView={onViewProduct}
                     onEdit={onEditProduct}
-                    onDelete={setDeleteTarget}
+                    onDelete={canDelete ? setDeleteTarget : () => undefined}
+                    canDelete={canDelete}
+                    onStockChange={requestStockChange}
                   />
                 </div>
 
@@ -295,11 +315,10 @@ export default function ProductsPage({ onAddProduct, onEditProduct, onViewProduc
                           <button
                             key={n}
                             onClick={() => setPage(n as number)}
-                            className={`w-9 h-9 rounded-xl text-sm font-semibold transition-all ${
-                              page === n
-                                ? 'bg-teal-600 text-white shadow-sm'
-                                : 'bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600'
-                            }`}
+                            className={`w-9 h-9 rounded-xl text-sm font-semibold transition-all ${page === n
+                              ? 'bg-teal-600 text-white shadow-sm'
+                              : 'bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-600'
+                              }`}
                           >
                             {n}
                           </button>
@@ -340,12 +359,40 @@ export default function ProductsPage({ onAddProduct, onEditProduct, onViewProduc
           </div>
         </div>
       )}
+
+      {stockTarget && (
+        <div className="modal-backdrop" onClick={() => setStockTarget(null)}>
+          <div className="modal-box max-w-sm p-6" onClick={e => e.stopPropagation()}>
+            <h3 className="text-lg font-bold text-slate-800 dark:text-slate-100 mb-2">
+              {stockTarget.direction === 1 ? 'إضافة للمخزون' : 'إنقاص من المخزون'}
+            </h3>
+            <p className="text-sm text-slate-500 dark:text-slate-400 mb-4">{stockTarget.product.name}</p>
+            <input
+              autoFocus
+              type="number"
+              min="1"
+              max={stockTarget.direction === -1 ? stockTarget.product.quantity : undefined}
+              value={stockAmount}
+              onChange={e => setStockAmount(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') void submitStockChange(); }}
+              placeholder="أدخل الكمية"
+              className="input text-lg"
+            />
+            <div className="flex gap-3 justify-end mt-5">
+              <button onClick={() => setStockTarget(null)} className="btn-secondary">إلغاء</button>
+              <button onClick={() => void submitStockChange()} className="btn-primary" disabled={!stockAmount || Number(stockAmount) <= 0}>
+                تأكيد
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 /* ---- Browse View ---- */
-function BrowseView({ categories, browseCatId, browsePath, flat, onNavigate, onBreadcrumb, onView, onEdit, onDelete }: {
+function BrowseView({ categories, browseCatId, browsePath, flat, onNavigate, onBreadcrumb, onView, onEdit, onDelete, canDelete, onStockChange }: {
   categories: Category[];
   browseCatId: string | null;
   browsePath: Category[];
@@ -355,6 +402,8 @@ function BrowseView({ categories, browseCatId, browsePath, flat, onNavigate, onB
   onView: (p: Product) => void;
   onEdit: (p: Product) => void;
   onDelete: (p: Product) => void;
+  canDelete: boolean;
+  onStockChange: (p: Product, change: number) => Promise<void>;
 }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(false);
@@ -385,11 +434,10 @@ function BrowseView({ categories, browseCatId, browsePath, flat, onNavigate, onB
               <ChevronLeft size={12} className="text-slate-300 dark:text-slate-600" />
               <button
                 onClick={() => onBreadcrumb(idx)}
-                className={`text-sm font-medium transition-colors ${
-                  idx === browsePath.length - 1
-                    ? 'text-teal-700 dark:text-teal-300 font-bold'
-                    : 'text-slate-500 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400'
-                }`}
+                className={`text-sm font-medium transition-colors ${idx === browsePath.length - 1
+                  ? 'text-teal-700 dark:text-teal-300 font-bold'
+                  : 'text-slate-500 dark:text-slate-400 hover:text-teal-600 dark:hover:text-teal-400'
+                  }`}
               >
                 {cat.name}
               </button>
@@ -443,6 +491,8 @@ function BrowseView({ categories, browseCatId, browsePath, flat, onNavigate, onB
                   onView={onView}
                   onEdit={onEdit}
                   onDelete={onDelete}
+                  canDelete={canDelete}
+                  onStockChange={onStockChange}
                 />
               ))}
             </div>
@@ -460,12 +510,12 @@ function BrowseView({ categories, browseCatId, browsePath, flat, onNavigate, onB
 }
 
 /* ---- Product Browse Card ---- */
-function ProductBrowseCard({ product, onView, onEdit, onDelete }: {
-  product: Product; onView: (p: Product) => void; onEdit: (p: Product) => void; onDelete: (p: Product) => void;
+function ProductBrowseCard({ product, onView, onEdit, onDelete, canDelete, onStockChange }: {
+  product: Product; onView: (p: Product) => void; onEdit: (p: Product) => void; onDelete: (p: Product) => void; canDelete: boolean; onStockChange: (p: Product, change: number) => Promise<void>;
 }) {
   const status = getStockStatus(product.quantity);
   return (
-    <div className="card p-4 hover:shadow-md transition-shadow">
+    <div className="card p-4 hover:shadow-md transition-shadow cursor-pointer" onClick={() => onView(product)}>
       <div className="flex gap-3">
         <div className="w-16 h-16 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-700 shrink-0 border border-slate-100 dark:border-slate-600">
           {product.image_url
@@ -488,9 +538,10 @@ function ProductBrowseCard({ product, onView, onEdit, onDelete }: {
       <div className="flex items-center justify-between mt-3 pt-3 border-t border-slate-100 dark:border-slate-700">
         <span className="text-sm font-bold text-teal-600 dark:text-teal-400">{product.final_price.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج</span>
         <div className="flex items-center gap-1">
-          <button onClick={() => onView(product)} className="btn-icon-teal"><Eye size={14} /></button>
-          <button onClick={() => onEdit(product)} className="btn-icon"><Pencil size={14} /></button>
-          <button onClick={() => onDelete(product)} className="btn-icon-red"><Trash2 size={14} /></button>
+          <button onClick={e => { e.stopPropagation(); void onStockChange(product, -1); }} disabled={product.quantity === 0} className="btn-icon" title="إنقاص المخزون"><Minus size={14} /></button>
+          <button onClick={e => { e.stopPropagation(); void onStockChange(product, 1); }} className="btn-icon-teal" title="إضافة للمخزون"><Plus size={14} /></button>
+          <button onClick={e => { e.stopPropagation(); onEdit(product); }} className="btn-icon"><Pencil size={14} /></button>
+          {canDelete && <button onClick={e => { e.stopPropagation(); onDelete(product); }} className="btn-icon-red"><Trash2 size={14} /></button>}
         </div>
       </div>
     </div>
@@ -498,14 +549,14 @@ function ProductBrowseCard({ product, onView, onEdit, onDelete }: {
 }
 
 /* ---- Mobile Product Card ---- */
-function MobileProductCard({ product, categories, onView, onEdit, onDelete }: {
+function MobileProductCard({ product, categories, onView, onEdit, onDelete, canDelete, onStockChange }: {
   product: Product; categories: Category[];
-  onView: (p: Product) => void; onEdit: (p: Product) => void; onDelete: (p: Product) => void;
+  onView: (p: Product) => void; onEdit: (p: Product) => void; onDelete: (p: Product) => void; canDelete: boolean; onStockChange: (p: Product, change: number) => Promise<void>;
 }) {
   const status = getStockStatus(product.quantity);
   const path = getCategoryPath(product.category_id, categories);
   return (
-    <div className="card p-4 hover:shadow-md transition-shadow">
+    <div className="card p-4 hover:shadow-md transition-shadow cursor-pointer" onClick={() => onView(product)}>
       <div className="flex gap-3 mb-3">
         <div className="w-14 h-14 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-700 shrink-0 border border-slate-100 dark:border-slate-600">
           {product.image_url
@@ -531,9 +582,10 @@ function MobileProductCard({ product, categories, onView, onEdit, onDelete }: {
           <span className="text-xs text-slate-400 dark:text-slate-500 mr-1.5">{product.quantity} {product.unit}</span>
         </div>
         <div className="flex items-center gap-1">
-          <button onClick={() => onView(product)} className="btn-icon-teal"><Eye size={15} /></button>
-          <button onClick={() => onEdit(product)} className="btn-icon"><Pencil size={15} /></button>
-          <button onClick={() => onDelete(product)} className="btn-icon-red"><Trash2 size={15} /></button>
+          <button onClick={e => { e.stopPropagation(); void onStockChange(product, -1); }} disabled={product.quantity === 0} className="btn-icon" title="إنقاص المخزون"><Minus size={15} /></button>
+          <button onClick={e => { e.stopPropagation(); void onStockChange(product, 1); }} className="btn-icon-teal" title="إضافة للمخزون"><Plus size={15} /></button>
+          <button onClick={e => { e.stopPropagation(); onEdit(product); }} className="btn-icon"><Pencil size={15} /></button>
+          {canDelete && <button onClick={e => { e.stopPropagation(); onDelete(product); }} className="btn-icon-red"><Trash2 size={15} /></button>}
         </div>
       </div>
     </div>
@@ -541,9 +593,9 @@ function MobileProductCard({ product, categories, onView, onEdit, onDelete }: {
 }
 
 /* ---- Desktop Table ---- */
-function DesktopTable({ products, categories, onView, onEdit, onDelete }: {
-  products: Product[]; categories: Category[];
-  onView: (p: Product) => void; onEdit: (p: Product) => void; onDelete: (p: Product) => void;
+function DesktopTable({ products, onView, onEdit, onDelete, canDelete, onStockChange }: {
+  products: Product[];
+  onView: (p: Product) => void; onEdit: (p: Product) => void; onDelete: (p: Product) => void; canDelete: boolean; onStockChange: (p: Product, change: number) => Promise<void>;
 }) {
   return (
     <div className="overflow-x-auto">
@@ -551,10 +603,11 @@ function DesktopTable({ products, categories, onView, onEdit, onDelete }: {
         <thead className="bg-slate-50 dark:bg-slate-700/40 border-b border-slate-100 dark:border-slate-700">
           <tr>
             <th className="py-3 px-4">المنتج</th>
-            <th className="py-3 px-4">الكود</th>
-            <th className="py-3 px-4">المسار</th>
+            <th className="py-3 px-4">اللون</th>
+            <th className="py-3 px-4">الوصف</th>
             <th className="py-3 px-4">الكمية</th>
             <th className="py-3 px-4">السعر</th>
+            <th className="py-3 px-4">السعر النهائي</th>
             <th className="py-3 px-4">الحجم</th>
             <th className="py-3 px-4">الحالة</th>
             <th className="py-3 px-4 w-24" />
@@ -563,9 +616,8 @@ function DesktopTable({ products, categories, onView, onEdit, onDelete }: {
         <tbody>
           {products.map(product => {
             const status = getStockStatus(product.quantity);
-            const path = getCategoryPath(product.category_id, categories);
             return (
-              <tr key={product.id} className="table-row-hover border-b border-slate-50 dark:border-slate-700/50">
+              <tr key={product.id} onClick={() => onView(product)} className="table-row-hover border-b border-slate-50 dark:border-slate-700/50 cursor-pointer">
                 <td className="py-3 px-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-xl overflow-hidden bg-slate-100 dark:bg-slate-700 shrink-0 border border-slate-100 dark:border-slate-600">
@@ -578,16 +630,19 @@ function DesktopTable({ products, categories, onView, onEdit, onDelete }: {
                   </div>
                 </td>
                 <td className="py-3 px-4">
-                  <span className="text-xs font-mono bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 px-2 py-1 rounded-lg">{product.code}</span>
+                  <span className="text-xs text-slate-600 dark:text-slate-300">{product.color || '—'}</span>
                 </td>
                 <td className="py-3 px-4 max-w-[180px]">
-                  <span className="text-xs text-slate-500 dark:text-slate-400 block truncate">{path}</span>
+                  <span className="text-xs text-slate-500 dark:text-slate-400 block truncate">{product.descrption || '—'}</span>
                 </td>
                 <td className="py-3 px-4">
                   <span className="text-sm font-bold text-slate-700 dark:text-slate-200">{product.quantity.toLocaleString('ar-EG')} <span className="text-xs font-normal text-slate-400">{product.unit}</span></span>
                 </td>
                 <td className="py-3 px-4">
-                  <span className="text-sm font-semibold text-teal-600 dark:text-teal-400">{product.final_price.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج</span>
+                  <span className="text-sm font-semibold text-teal-600 dark:text-teal-400">{product.base_price.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج</span>
+                </td>
+                <td className="py-3 px-4">
+                  <span className="text-sm font-semibold text-green-600 dark:text-green-400">{product.final_price.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج</span>
                 </td>
                 <td className="py-3 px-4">
                   <span className="text-xs text-slate-500 dark:text-slate-400">{product.size || '—'}</span>
@@ -600,9 +655,10 @@ function DesktopTable({ products, categories, onView, onEdit, onDelete }: {
                 </td>
                 <td className="py-3 px-4">
                   <div className="flex items-center gap-1 justify-end">
-                    <button onClick={() => onView(product)} className="btn-icon-teal" title="عرض"><Eye size={14} /></button>
-                    <button onClick={() => onEdit(product)} className="btn-icon" title="تعديل"><Pencil size={14} /></button>
-                    <button onClick={() => onDelete(product)} className="btn-icon-red" title="حذف"><Trash2 size={14} /></button>
+                    <button onClick={e => { e.stopPropagation(); void onStockChange(product, -1); }} disabled={product.quantity === 0} className="btn-icon" title="إنقاص المخزون"><Minus size={14} /></button>
+                    <button onClick={e => { e.stopPropagation(); void onStockChange(product, 1); }} className="btn-icon-teal" title="إضافة للمخزون"><Plus size={14} /></button>
+                    <button onClick={e => { e.stopPropagation(); onEdit(product); }} className="btn-icon" title="تعديل"><Pencil size={14} /></button>
+                    {canDelete && <button onClick={e => { e.stopPropagation(); onDelete(product); }} className="btn-icon-red" title="حذف"><Trash2 size={14} /></button>}
                   </div>
                 </td>
               </tr>

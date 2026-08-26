@@ -11,20 +11,21 @@ import SettingsPage from './pages/SettingsPage';
 import AuthPage from './pages/AuthPage';
 import { useAuth } from './context/AuthContext';
 import { Product } from './lib/supabase';
+import { getProduct, updateProduct } from './lib/api';
 import { Loader2 } from 'lucide-react';
 
 type Page = 'dashboard' | 'products' | 'categories' | 'reports' | 'settings';
 
 const PAGE_TITLES: Record<Page, { title: string; subtitle: string }> = {
-  dashboard:  { title: 'لوحة التحكم', subtitle: 'نظرة عامة على المخزون' },
-  products:   { title: 'المنتجات', subtitle: 'إدارة قائمة المنتجات' },
+  dashboard: { title: 'لوحة التحكم', subtitle: 'نظرة عامة على المخزون' },
+  products: { title: 'المنتجات', subtitle: 'إدارة قائمة المنتجات' },
   categories: { title: 'الأقسام', subtitle: 'إدارة الأقسام والتصنيفات' },
-  reports:    { title: 'التقارير', subtitle: 'تقارير وإحصائيات المخزون' },
-  settings:   { title: 'الإعدادات', subtitle: 'إعدادات النظام' },
+  reports: { title: 'التقارير', subtitle: 'تقارير وإحصائيات المخزون' },
+  settings: { title: 'الإعدادات', subtitle: 'إعدادات النظام' },
 };
 
 export default function App() {
-  const { session, loading } = useAuth();
+  const { user, loading } = useAuth();
   const [page, setPage] = useState<Page>('dashboard');
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [productForm, setProductForm] = useState<{ open: boolean; product?: Product | null }>({ open: false });
@@ -39,12 +40,23 @@ export default function App() {
     );
   }
 
-  if (!session) return <AuthPage />;
+  if (!user) return <AuthPage />;
 
   function navigate(p: string) { setPage(p as Page); }
   function openAdd() { setProductDetail(null); setProductForm({ open: true, product: null }); }
   function openEdit(product: Product) { setProductDetail(null); setProductForm({ open: true, product }); }
   function handleFormSaved() { setProductForm({ open: false }); setProductsKey(k => k + 1); }
+  async function handleStockChange(product: Product, change: number) {
+    await updateProduct(product.id, { quantity: Math.max(0, product.quantity + change) });
+    setProductsKey(k => k + 1);
+  }
+  async function openProduct(product: Product) {
+    try {
+      setProductDetail(await getProduct(product.id));
+    } catch {
+      setProductDetail(product);
+    }
+  }
 
   const { title, subtitle } = PAGE_TITLES[page];
 
@@ -56,11 +68,11 @@ export default function App() {
         <TopBar title={title} subtitle={subtitle} onMenuClick={() => setSidebarOpen(true)} />
 
         <main className="flex-1 overflow-y-auto p-4 sm:p-5">
-          {page === 'dashboard'  && <Dashboard onNavigate={navigate} />}
-          {page === 'products'   && <ProductsPage key={productsKey} onAddProduct={openAdd} onEditProduct={openEdit} onViewProduct={setProductDetail} />}
+          {page === 'dashboard' && <Dashboard onNavigate={navigate} />}
+          {page === 'products' && <ProductsPage key={productsKey} onAddProduct={openAdd} onEditProduct={openEdit} onViewProduct={openProduct} onStockChange={handleStockChange} />}
           {page === 'categories' && <CategoriesPage />}
-          {page === 'reports'    && <ReportsPage />}
-          {page === 'settings'   && <SettingsPage />}
+          {page === 'reports' && <ReportsPage onViewProduct={openProduct} />}
+          {page === 'settings' && <SettingsPage />}
         </main>
       </div>
 

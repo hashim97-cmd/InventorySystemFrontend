@@ -4,12 +4,12 @@ type Theme = 'light' | 'dark';
 
 const ThemeContext = createContext<{ theme: Theme; toggle: () => void }>({
   theme: 'light',
-  toggle: () => {},
+  toggle: () => { },
 });
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>(() => {
-    const saved = localStorage.getItem('theme');
+    const saved = typeof window !== 'undefined' ? window.localStorage.getItem('theme') : null;
     return (saved === 'dark' || saved === 'light') ? saved : 'light';
   });
 

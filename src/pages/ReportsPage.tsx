@@ -1,18 +1,29 @@
 import { useEffect, useState } from 'react';
 import { Loader2, TrendingDown, DollarSign, Package, AlertTriangle, BarChart2 } from 'lucide-react';
-import { supabase, Product, Category, buildCategoryTree, getStockStatus, flattenCategories, getCategoryPath } from '../lib/supabase';
+import { supabase, Product, Category, buildCategoryTree, flattenCategories, getCategoryPath } from '../lib/supabase';
+import { getLowStockProducts, getOutOfStockProducts, getProducts } from '../lib/api';
 
-export default function ReportsPage() {
+type Props = {
+  onViewProduct: (product: Product) => void;
+};
+
+export default function ReportsPage({ onViewProduct }: Props) {
   const [products, setProducts] = useState<Product[]>([]);
+  const [lowStock, setLowStock] = useState<Product[]>([]);
+  const [outOfStock, setOutOfStock] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     Promise.all([
-      supabase.from('products').select('*').order('final_price', { ascending: false }),
+      getProducts({ limit: 10000, sort_by: 'finalPrice', sort_dir: 'desc' }),
+      getLowStockProducts(),
+      getOutOfStockProducts(),
       supabase.from('categories').select('*').order('sort_order'),
-    ]).then(([{ data: prods }, { data: cats }]) => {
-      if (prods) setProducts(prods as Product[]);
+    ]).then(([{ data: prods }, low, out, { data: cats }]) => {
+      if (prods) setProducts(prods);
+      setLowStock(low);
+      setOutOfStock(out);
       if (cats) setCategories(buildCategoryTree(cats as Category[]));
       setLoading(false);
     });
@@ -24,8 +35,6 @@ export default function ReportsPage() {
     </div>
   );
 
-  const lowStock = products.filter(p => p.quantity > 0 && p.quantity <= 10);
-  const outOfStock = products.filter(p => p.quantity === 0);
   const totalValue = products.reduce((s, p) => s + p.final_price * p.quantity, 0);
   const flat = flattenCategories(categories);
 
@@ -114,18 +123,18 @@ export default function ReportsPage() {
           ) : (
             <div className="space-y-2 max-h-72 overflow-y-auto">
               {outOfStock.map(p => (
-                <div key={p.id} className="flex items-center gap-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-100 dark:border-red-800/50">
+                <button key={p.id} type="button" onClick={() => onViewProduct(p)} className="w-full flex items-center gap-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-xl border border-red-100 dark:border-red-800/50 text-right hover:shadow-sm transition-shadow">
                   <span className="badge-red shrink-0">نفذ</span>
                   <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex-1 truncate">{p.name}</span>
                   <span className="text-xs text-slate-400 dark:text-slate-500 shrink-0">{getCategoryPath(p.category_id, categories)}</span>
-                </div>
+                </button>
               ))}
               {lowStock.map(p => (
-                <div key={p.id} className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-100 dark:border-amber-800/50">
+                <button key={p.id} type="button" onClick={() => onViewProduct(p)} className="w-full flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-100 dark:border-amber-800/50 text-right hover:shadow-sm transition-shadow">
                   <span className="badge-amber shrink-0">منخفض</span>
                   <span className="text-sm font-semibold text-slate-700 dark:text-slate-200 flex-1 truncate">{p.name}</span>
                   <span className="text-xs font-bold text-amber-600 dark:text-amber-400 shrink-0">{p.quantity} {(p as any).unit}</span>
-                </div>
+                </button>
               ))}
             </div>
           )}
