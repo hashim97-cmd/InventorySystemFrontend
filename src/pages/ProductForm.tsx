@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
-import { X, Loader2, Package, Calculator } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { X, Loader2, Package, Calculator, Upload } from 'lucide-react';
 import { supabase, Product, Category, buildCategoryTree, ProductFormData } from '../lib/supabase';
 import CategorySelect from '../components/CategorySelect';
+import { getFriendlyErrorMessage, uploadProductImage } from '../lib/api';
 
 type Props = {
   product?: Product | null;
@@ -23,6 +24,9 @@ export default function ProductForm({ product, onClose, onSaved }: Props) {
   const [saving, setSaving] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [manualFinalPrice, setManualFinalPrice] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [formError, setFormError] = useState('');
+  const imageInput = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     supabase.from('categories').select('*').order('sort_order').then(({ data }) => {
@@ -42,7 +46,7 @@ export default function ProductForm({ product, onClose, onSaved }: Props) {
         margin_pct: product.margin_pct.toString(),
         final_price: product.final_price.toString(),
         image_url: product.image_url ?? '',
-        unit: (product as any).unit ?? 'قطعة',
+        unit: product.unit ?? 'قطعة',
       });
       const calculatedPrice = product.base_price * (1 + product.margin_pct / 100);
       setManualFinalPrice(Math.abs(product.final_price - calculatedPrice) > 0.01);
@@ -60,18 +64,34 @@ export default function ProductForm({ product, onClose, onSaved }: Props) {
   function validate() {
     const e: Record<string, string> = {};
     if (!form.name.trim()) e.name = 'اسم المنتج مطلوب';
-    if (!form.code.trim()) e.code = 'الكود مطلوب';
     if (!form.base_price || isNaN(parseFloat(form.base_price))) e.base_price = 'السعر مطلوب';
     setErrors(e);
     return Object.keys(e).length === 0;
   }
 
+  async function handleImageUpload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    setUploadingImage(true);
+    setErrors(e => ({ ...e, image_url: '' }));
+    try {
+      set('image_url', await uploadProductImage(file));
+    } catch {
+      setErrors(e => ({ ...e, image_url: 'تعذر رفع الصورة' }));
+    } finally {
+      setUploadingImage(false);
+      event.target.value = '';
+    }
+  }
+
   async function handleSave() {
     if (!validate()) return;
     setSaving(true);
+    setFormError('');
     const payload = {
       name: form.name.trim(),
-      code: form.code.trim(),
+      ...(form.code.trim() ? { code: form.code.trim() } : {}),
       category_id: form.category_id || null,
       quantity: Number(form.quantity) || 0,
       length_cm: form.length_cm ? parseFloat(form.length_cm) : null,
@@ -96,7 +116,9 @@ export default function ProductForm({ product, onClose, onSaved }: Props) {
     if (!error) {
       onSaved();
     } else if (error.code === '23505') {
-      setErrors({ code: 'هذا الكود مستخدم بالفعل' });
+      setErrors({ code: 'هذا الكود مستخدم بالفعل.' });
+    } else {
+      setFormError(getFriendlyErrorMessage(error, 'تعذر حفظ المنتج. حاول مرة أخرى.'));
     }
   }
 
@@ -119,9 +141,17 @@ export default function ProductForm({ product, onClose, onSaved }: Props) {
                 <Package size={26} className="text-slate-300 dark:text-slate-600" />
               )}
             </div>
-            <div className="flex-1">
-              <label className="label">رابط صورة المنتج</label>
-              <input type="text" value={form.image_url} onChange={e => set('image_url', e.target.value)} className="input" placeholder="https://..." />
+            <div className="flex-1 space-y-2">
+              <label className="label">صورة المنتج</label>
+              <div className="flex gap-2">
+                <input type="text" value={form.image_url} onChange={e => set('image_url', e.target.value)} className="input" placeholder="رابط الصورة أو ارفع ملفًا" />
+                <button type="button" onClick={() => imageInput.current?.click()} disabled={uploadingImage} className="btn-secondary shrink-0">
+                  {uploadingImage ? <Loader2 size={15} className="animate-spin" /> : <Upload size={15} />}
+                  رفع صورة
+                </button>
+              </div>
+              <input ref={imageInput} type="file" accept="image/*" onChange={handleImageUpload} className="hidden" />
+              {errors.image_url && <p className="text-xs text-red-500">{errors.image_url}</p>}
             </div>
           </div>
 
@@ -133,7 +163,7 @@ export default function ProductForm({ product, onClose, onSaved }: Props) {
               {errors.name && <p className="text-xs text-red-500 mt-1">{errors.name}</p>}
             </div>
             <div>
-              <label className="label">الكود (SKU) *</label>
+              <label className="label">الكود (SKU) اختياري</label>
               <input type="text" value={form.code} onChange={e => set('code', e.target.value)} className={`input font-mono ${errors.code ? 'border-red-300 focus:ring-red-500' : ''}`} placeholder="P-001" />
               {errors.code && <p className="text-xs text-red-500 mt-1">{errors.code}</p>}
             </div>
@@ -171,7 +201,7 @@ export default function ProductForm({ product, onClose, onSaved }: Props) {
                 <div key={field} className="relative">
                   <input
                     type="number"
-                    value={(form as any)[field]}
+                    value={form[field]}
                     onChange={e => set(field, e.target.value)}
                     className="input pl-8"
                     placeholder={['الطول', 'العرض', 'الارتفاع'][i]}
@@ -223,6 +253,7 @@ export default function ProductForm({ product, onClose, onSaved }: Props) {
 
         {/* Footer */}
         <div className="px-6 pb-5 flex items-center gap-3 justify-end border-t border-slate-100 dark:border-slate-700 pt-4">
+          {formError && <p className="text-xs text-red-500 ml-auto">{formError}</p>}
           <button onClick={onClose} className="btn-secondary">إلغاء</button>
           <button onClick={handleSave} disabled={saving} className="btn-primary disabled:opacity-50">
             {saving && <Loader2 size={15} className="animate-spin" />}

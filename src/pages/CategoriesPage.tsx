@@ -3,6 +3,7 @@ import { Plus, Loader2, X, AlertTriangle } from 'lucide-react';
 import { supabase, Category, buildCategoryTree } from '../lib/supabase';
 import CategoryTree from '../components/CategoryTree';
 import CategorySelect from '../components/CategorySelect';
+import { getFriendlyErrorMessage } from '../lib/api';
 
 type ModalState = { mode: 'add' | 'edit'; category?: Category; defaultParentId?: string; defaultParentName?: string } | null;
 
@@ -16,15 +17,23 @@ export default function CategoriesPage() {
   const [deleting, setDeleting] = useState(false);
   const [formName, setFormName] = useState('');
   const [formParentId, setFormParentId] = useState('');
+  const [message, setMessage] = useState('');
 
   useEffect(() => { loadData(); }, []);
 
   async function loadData() {
     setLoading(true);
-    const [{ data: cats }, { data: prods }] = await Promise.all([
+    const [categoriesResult, productsResult] = await Promise.all([
       supabase.from('categories').select('*').order('sort_order'),
       supabase.from('products').select('category_id'),
     ]);
+    if (categoriesResult.error || productsResult.error) {
+      setMessage(getFriendlyErrorMessage(categoriesResult.error || productsResult.error, 'تعذر تحميل الأقسام.'));
+      setLoading(false);
+      return;
+    }
+    const cats = categoriesResult.data;
+    const prods = productsResult.data;
     if (cats) setTree(buildCategoryTree(cats as Category[]));
     if (prods) {
       const counts: Record<string, number> = {};
@@ -51,9 +60,11 @@ export default function CategoriesPage() {
     setSaving(true);
     const payload = { name: formName.trim(), parent_id: formParentId || null };
     if (modal?.mode === 'edit' && modal.category) {
-      await supabase.from('categories').update(payload).eq('id', modal.category.id);
+      const { error } = await supabase.from('categories').update(payload).eq('id', modal.category.id);
+      if (error) { setMessage(getFriendlyErrorMessage(error, 'تعذر تحديث القسم.')); setSaving(false); return; }
     } else {
-      await supabase.from('categories').insert(payload);
+      const { error } = await supabase.from('categories').insert(payload);
+      if (error) { setMessage(getFriendlyErrorMessage(error, 'تعذر إضافة القسم.')); setSaving(false); return; }
     }
     setSaving(false); setModal(null); await loadData();
   }
@@ -61,13 +72,19 @@ export default function CategoriesPage() {
   async function handleDelete() {
     if (!deleteTarget) return;
     setDeleting(true);
-    await supabase.from('categories').delete().eq('id', deleteTarget.id);
+    const { error } = await supabase.from('categories').delete().eq('id', deleteTarget.id);
+    if (error) {
+      setMessage(getFriendlyErrorMessage(error, 'تعذر حذف القسم.'));
+      setDeleting(false);
+      return;
+    }
     setDeleting(false); setDeleteTarget(null); await loadData();
   }
 
   return (
     <div className="space-y-4">
       <div className="card">
+        {message && <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-600 dark:bg-red-900/20 dark:text-red-400">{message}</p>}
         <div className="flex items-center justify-between mb-5">
           <div>
             <h2 className="section-title">شجرة الأقسام</h2>

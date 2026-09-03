@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Package, Eye, EyeOff, Loader2, AlertCircle } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../context/AuthContext';
+import { getFriendlyErrorMessage } from '../lib/api';
 
 export default function AuthPage() {
   const [email, setEmail] = useState('');
@@ -26,8 +27,8 @@ export default function AuthPage() {
     try {
       await signIn(email.trim(), password);
       router.push('/dashboard');
-    } catch (requestError: any) {
-      setError(requestError.response?.data?.message === 'Invalid credentials' ? 'بيانات الدخول غير صحيحة' : requestError.response?.data?.message || 'تعذر تسجيل الدخول');
+    } catch (requestError: unknown) {
+      setError(getFriendlyErrorMessage(requestError, 'تعذر تسجيل الدخول. حاول مرة أخرى.'));
     }
     setLoading(false);
   }

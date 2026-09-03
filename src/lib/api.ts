@@ -1,8 +1,77 @@
 import axios from 'axios';
 import type { Category, Product } from './supabase';
 
+type ErrorPayload = { message?: unknown; error?: unknown; code?: unknown };
+
+export function getFriendlyErrorMessage(error: unknown, fallback = 'حدث خطأ غير متوقع. حاول مرة أخرى.') {
+    const payload: ErrorPayload = axios.isAxiosError(error)
+        ? (error.response?.data as ErrorPayload | undefined) ?? {}
+        : (error as ErrorPayload | null) ?? {};
+    const rawMessage = typeof payload.message === 'string'
+        ? payload.message
+        : typeof payload.error === 'string'
+            ? payload.error
+            : typeof (payload.error as ErrorPayload | undefined)?.message === 'string'
+                ? (payload.error as ErrorPayload).message as string
+                : error instanceof Error ? error.message : '';
+
+    if (rawMessage && /[\u0600-\u06ff]/.test(rawMessage)) return rawMessage;
+
+    const status = axios.isAxiosError(error) ? error.response?.status : undefined;
+    const knownMessages: Record<string, string> = {
+        'Invalid credentials': 'بيانات الدخول غير صحيحة.',
+        'Email and password required': 'يرجى إدخال البريد الإلكتروني وكلمة المرور.',
+        'Email, password, and role are required': 'يرجى إدخال البريد الإلكتروني وكلمة المرور والصلاحية.',
+        'A user with this email already exists': 'يوجد مستخدم بهذا البريد الإلكتروني بالفعل.',
+        'User already registered': 'يوجد مستخدم بهذا البريد الإلكتروني بالفعل.',
+        'Password should be at least 6 characters': 'يجب أن تتكون كلمة المرور من 6 أحرف على الأقل.',
+        'Password should be at least 6 characters.': 'يجب أن تتكون كلمة المرور من 6 أحرف على الأقل.',
+        'Unable to validate email address: invalid format': 'صيغة البريد الإلكتروني غير صحيحة.',
+        'Email address is invalid': 'صيغة البريد الإلكتروني غير صحيحة.',
+        'Failed to create user': 'تعذر إنشاء المستخدم. تحقق من إعدادات قاعدة البيانات وحاول مرة أخرى.',
+        'Internal server error': 'حدث خطأ في الخادم أثناء إنشاء المستخدم. حاول مرة أخرى لاحقًا.',
+        'Role must be admin or user': 'الصلاحية المحددة غير صحيحة.',
+        'Invalid role': 'الصلاحية المحددة غير صحيحة.',
+        'User profile not found': 'لم يتم العثور على بيانات المستخدم.',
+        'No file uploaded': 'يرجى اختيار ملف لرفعه.',
+        'File too large': 'حجم الملف كبير جدًا.',
+        'Only image files are allowed': 'يرجى اختيار ملف صورة صالح.',
+        'Image upload failed': 'تعذر رفع الصورة. تحقق من الملف وحاول مرة أخرى.',
+        'Invalid JSON file': 'ملف النسخة الاحتياطية غير صالح.',
+        'Invalid backup format': 'تنسيق النسخة الاحتياطية غير مدعوم.',
+        'Product not found': 'لم يتم العثور على المنتج.',
+        'Category with this name already exists': 'يوجد قسم بهذا الاسم بالفعل.',
+        'Category not found': 'لم يتم العثور على القسم.',
+        'Name is required': 'اسم القسم مطلوب.',
+        'Parent category not found': 'القسم الأب غير موجود.',
+        'Cannot delete product. It has related records.': 'لا يمكن حذف المنتج لوجود سجلات مرتبطة به.',
+    };
+
+    if (knownMessages[rawMessage]) return knownMessages[rawMessage];
+    const normalizedMessage = rawMessage.trim().toLowerCase();
+    const normalizedKnownMessage = Object.entries(knownMessages).find(([message]) => message.toLowerCase() === normalizedMessage);
+    if (normalizedKnownMessage) return normalizedKnownMessage[1];
+    if (payload.code === 'email_exists' || /email.*(already|exists|registered)|already.*(registered|exists)/i.test(rawMessage)) {
+        return 'يوجد مستخدم بهذا البريد الإلكتروني بالفعل.';
+    }
+    if (/already registered|already exists|already been registered/i.test(rawMessage)) return 'يوجد مستخدم بهذا البريد الإلكتروني بالفعل.';
+    if (/password.*(6|characters)|weak password/i.test(rawMessage)) return 'يجب أن تتكون كلمة المرور من 6 أحرف على الأقل.';
+    if (/invalid.*email|email.*invalid/i.test(rawMessage)) return 'صيغة البريد الإلكتروني غير صحيحة.';
+    if (/database error creating user|error creating user/i.test(rawMessage)) return 'تعذر إنشاء المستخدم في قاعدة البيانات. تحقق من إعدادات المستخدم وحاول مرة أخرى.';
+    if (/forbidden|super admin/i.test(rawMessage)) return 'يجب أن تكون مديرًا عامًا لإنشاء المستخدمين.';
+    if (payload.code === '23505' || rawMessage.includes('P2002')) return 'هذه البيانات مستخدمة بالفعل.';
+    if (status === 400) return 'البيانات المدخلة غير صحيحة.';
+    if (status === 401) return 'انتهت الجلسة أو بيانات الدخول غير صحيحة.';
+    if (status === 403) return 'ليس لديك صلاحية لتنفيذ هذا الإجراء.';
+    if (status === 404) return 'العنصر المطلوب غير موجود.';
+    if (status === 409) return 'لا يمكن تنفيذ العملية بسبب تعارض في البيانات.';
+    if (status && status >= 500) return 'حدث خلل في الخادم. حاول مرة أخرى لاحقًا.';
+    if (rawMessage === 'Network Error') return 'تعذر الاتصال بالخادم. تحقق من اتصالك بالإنترنت.';
+    return fallback;
+}
+
 const api = axios.create({
-    baseURL: process.env.NEXT_PUBLIC_API_URL || process.env.VITE_API_URL || 'http://localhost:4040/api',
+    baseURL: process.env.NEXT_PUBLIC_API_URL || process.env.VITE_API_URL || 'https://api.glowrose.site/api',
     withCredentials: true,
     headers: { 'Content-Type': 'application/json' },
 });
@@ -52,6 +121,15 @@ export async function updateUser(id: string, payload: { role?: ManagedUser['role
 
 export async function deleteUser(id: string): Promise<void> {
     await api.delete(`/users/${id}`);
+}
+
+export async function uploadProductImage(file: File): Promise<string> {
+    const formData = new FormData();
+    formData.append('file', file);
+    const { data } = await api.post('/upload/image', formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
+    return data.secure_url;
 }
 
 export function normalizeCategory(category: any): Category {
@@ -189,7 +267,10 @@ class ApiQuery implements PromiseLike<QueryResult> {
                 return { data: null, error: null };
             }
             if (this.operation === 'update') {
-                await api.patch(`${resource}/${this.id}`, toApiProduct(this.body));
+                await api.patch(
+                    `${resource}/${this.id}`,
+                    this.table === 'products' ? toApiProduct(this.body) : toApiCategory(this.body),
+                );
                 return { data: null, error: null };
             }
             if (this.operation === 'insert') {

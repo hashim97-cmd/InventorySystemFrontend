@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Sun, Moon, Monitor, Info, Download, Upload, UserPlus, Loader2, Pencil, Trash2, X } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
-import { api, deleteUser, getUsers, ManagedUser, updateUser } from '../lib/api';
+import { api, deleteUser, getFriendlyErrorMessage, getUsers, ManagedUser, updateUser } from '../lib/api';
 import { useAuth } from '../context/AuthContext';
 
 export default function SettingsPage() {
@@ -9,7 +9,8 @@ export default function SettingsPage() {
   const { user } = useAuth();
   const fileInput = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState<'backup' | 'restore' | 'user' | 'users' | null>(null);
-  const [message, setMessage] = useState('');
+  const [backupMessage, setBackupMessage] = useState('');
+  const [userMessage, setUserMessage] = useState('');
   const [users, setUsers] = useState<ManagedUser[]>([]);
   const [editingUser, setEditingUser] = useState<ManagedUser | null>(null);
   // Extract condition to a variable
@@ -19,39 +20,68 @@ export default function SettingsPage() {
   useEffect(() => {
     if (!isSuperAdmin) return;
     setBusy('users');
-    getUsers().then(setUsers).catch(() => setMessage('تعذر تحميل المستخدمين')).finally(() => setBusy(null));
+    getUsers().then(setUsers).catch(error => setUserMessage(getFriendlyErrorMessage(error, 'تعذر تحميل المستخدمين.'))).finally(() => setBusy(null));
   }, [isSuperAdmin]);
 
   async function downloadBackup() {
-    setBusy('backup'); setMessage('');
+    setBusy('backup'); setBackupMessage('');
     try {
       const response = await api.get('/backup', { responseType: 'blob' });
       const url = URL.createObjectURL(response.data);
-      const link = document.createElement('a'); link.href = url; link.download = 'inventory-backup.dump'; link.click(); URL.revokeObjectURL(url);
-      setMessage('تم تنزيل النسخة الاحتياطية');
-    } catch { setMessage('تعذر إنشاء النسخة الاحتياطية'); } finally { setBusy(null); }
+      const link = document.createElement('a'); link.href = url; link.download = 'inventory-backup.json'; link.click(); URL.revokeObjectURL(url);
+      setBackupMessage('تم تنزيل النسخة الاحتياطية');
+    } catch (error: unknown) { setBackupMessage(getFriendlyErrorMessage(error, 'تعذر إنشاء النسخة الاحتياطية.')); } finally { setBusy(null); }
   }
 
   async function restoreBackup(event: React.ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0]; if (!file) return;
-    setBusy('restore'); setMessage('');
-    try { const form = new FormData(); form.append('file', file); await api.post('/restore', form, { headers: { 'Content-Type': 'multipart/form-data' } }); setMessage('تمت استعادة النسخة الاحتياطية'); }
-    catch (error: any) { setMessage(error.response?.data?.message || 'تعذر استعادة النسخة الاحتياطية'); }
+    setBusy('restore'); setBackupMessage('');
+    try { const form = new FormData(); form.append('file', file); await api.post('/restore', form, { headers: { 'Content-Type': 'multipart/form-data' } }); setBackupMessage('تمت استعادة النسخة الاحتياطية'); }
+    catch (error: unknown) { setBackupMessage(getFriendlyErrorMessage(error, 'تعذر استعادة النسخة الاحتياطية.')); }
     finally { setBusy(null); if (fileInput.current) fileInput.current.value = ''; }
   }
 
   async function createUser(event: React.FormEvent<HTMLFormElement>) {
-    event.preventDefault(); setBusy('user'); setMessage('');
+    event.preventDefault(); setBusy('user'); setUserMessage('');
     const form = new FormData(event.currentTarget);
-    try { await api.post('/users', { email: form.get('email'), password: form.get('password'), role: form.get('role') }); setMessage('تم إنشاء المستخدم'); event.currentTarget.reset(); }
-    catch (error: any) { setMessage(error.response?.data?.message || 'تعذر إنشاء المستخدم'); }
+    const email = String(form.get('email') || '').trim().toLowerCase();
+    try {
+      await api.post('/users', { email, password: form.get('password'), role: form.get('role') });
+      setUserMessage('تم إنشاء المستخدم');
+      event.currentTarget.reset();
+      getUsers().then(setUsers).catch(() => undefined);
+    }
+    catch (error: unknown) {
+      const responseStatus = (error as { response?: { status?: number } }).response?.status;
+
+      if (responseStatus && responseStatus >= 400 && responseStatus < 500) {
+        setUserMessage(getFriendlyErrorMessage(error, 'تعذر إنشاء المستخدم. تحقق من البريد وكلمة المرور والصلاحية.'));
+        return;
+      }
+
+      // 5xx or network error — verify if user was actually created
+      try {
+        const currentUsers = await getUsers();
+        const createdUser = currentUsers.find(item => item.email?.toLowerCase() === email);
+        if (createdUser) {
+          setUsers(currentUsers);
+          setUserMessage('تم إنشاء المستخدم بنجاح');
+          event.currentTarget.reset();
+          return;
+        }
+      } catch (verificationError) {
+        void verificationError;
+        console.log('Error verifying user creation:', verificationError);
+        setUserMessage(getFriendlyErrorMessage(error, 'تعذر إنشاء المستخدم. تحقق من البريد وكلمة المرور والصلاحية.'));
+      }
+    }
     finally { setBusy(null); }
   }
 
   async function saveUser(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!editingUser) return;
-    setBusy('users'); setMessage('');
+    setBusy('users'); setUserMessage('');
     const form = new FormData(event.currentTarget);
     const password = String(form.get('password') || '').trim();
     try {
@@ -61,19 +91,19 @@ export default function SettingsPage() {
       });
       setUsers(current => current.map(item => item.id === updated.id ? { ...item, ...updated } : item));
       setEditingUser(null);
-      setMessage('تم تحديث المستخدم');
-    } catch (error: any) { setMessage(error.response?.data?.message || 'تعذر تحديث المستخدم'); }
+      setUserMessage('تم تحديث المستخدم');
+    } catch (error: unknown) { setUserMessage(getFriendlyErrorMessage(error, 'تعذر تحديث المستخدم.')); }
     finally { setBusy(null); }
   }
 
   async function removeUser(target: ManagedUser) {
     if (target.id === user?.id || !window.confirm(`هل تريد حذف المستخدم ${target.email}؟`)) return;
-    setBusy('users'); setMessage('');
+    setBusy('users'); setUserMessage('');
     try {
       await deleteUser(target.id);
       setUsers(current => current.filter(item => item.id !== target.id));
-      setMessage('تم حذف المستخدم');
-    } catch (error: any) { setMessage(error.response?.data?.message || 'تعذر حذف المستخدم'); }
+      setUserMessage('تم حذف المستخدم');
+    } catch (error: unknown) { setUserMessage(getFriendlyErrorMessage(error, 'تعذر حذف المستخدم.')); }
     finally { setBusy(null); }
   }
 
@@ -142,9 +172,9 @@ export default function SettingsPage() {
           <div className="flex flex-wrap gap-3">
             <button onClick={downloadBackup} disabled={busy !== null} className="btn-primary"><Download size={15} /> {busy === 'backup' ? 'جاري الإنشاء...' : 'تنزيل نسخة احتياطية'}</button>
             <button onClick={() => fileInput.current?.click()} disabled={busy !== null} className="btn-secondary"><Upload size={15} /> {busy === 'restore' ? 'جاري الاستعادة...' : 'استعادة نسخة'}</button>
-            <input ref={fileInput} type="file" accept=".dump,.sql" onChange={restoreBackup} className="hidden" />
+            <input ref={fileInput} type="file" accept=".json,.dump,.sql" onChange={restoreBackup} className="hidden" />
           </div>
-          {message && <p className="text-sm text-slate-500 dark:text-slate-400 mt-3">{message}</p>}
+          {backupMessage && <p className="text-sm text-slate-500 dark:text-slate-400 mt-3">{backupMessage}</p>}
         </div>
       )}
 
@@ -157,6 +187,7 @@ export default function SettingsPage() {
             </div>
             {busy === 'users' && <Loader2 size={18} className="animate-spin text-slate-400" />}
           </div>
+          {userMessage && <p className="mb-4 text-sm text-slate-500 dark:text-slate-400">{userMessage}</p>}
           {users.length === 0 && busy !== 'users' ? (
             <p className="text-sm text-slate-400 dark:text-slate-500">لا يوجد مستخدمون</p>
           ) : (
