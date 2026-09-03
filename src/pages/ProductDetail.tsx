@@ -61,8 +61,8 @@ export default function ProductDetail({ product, onClose, onEdit, onDelete }: Pr
           {/* Left: Image */}
           <div className="md:col-span-1">
             <div className="aspect-square rounded-2xl overflow-hidden bg-slate-100 dark:bg-slate-700 border border-slate-100 dark:border-slate-600 w-full max-w-xs mx-auto md:max-w-none">
-              {details.image_url ? (
-                <img src={details.image_url} alt={details.name} className="w-full h-full object-cover" />
+              {details?.image_url ? (
+                <img src={details?.image_url} alt={details?.name} className="w-full h-full object-cover" />
               ) : (
                 <div className="w-full h-full flex items-center justify-center text-slate-200 dark:text-slate-600">
                   <Package size={64} />
@@ -81,7 +81,7 @@ export default function ProductDetail({ product, onClose, onEdit, onDelete }: Pr
                 <p className="text-xs text-slate-400 dark:text-slate-500 mb-0.5">الحالة</p>
                 <span className={`badge-${status.color} justify-center`}>
                   <span className="w-1.5 h-1.5 rounded-full bg-current" />
-                  {status.label}
+                  {status?.label}
                 </span>
               </div>
             </div>
@@ -97,13 +97,13 @@ export default function ProductDetail({ product, onClose, onEdit, onDelete }: Pr
                   {details.code}
                 </span>
               </div>
-              {pathParts.length > 0 && (
+              {pathParts?.length > 0 && (
                 <div className="flex items-center gap-1 flex-wrap mt-2">
                   <Layers size={12} className="text-slate-400 shrink-0" />
-                  {pathParts.map((part, i) => (
+                  {pathParts?.map((part, i) => (
                     <span key={i} className="flex items-center gap-1">
                       <span className="text-xs bg-slate-50 dark:bg-slate-700 border border-slate-100 dark:border-slate-600 text-slate-600 dark:text-slate-300 px-2 py-0.5 rounded-lg">{part}</span>
-                      {i < pathParts.length - 1 && <ChevronLeft size={10} className="text-slate-300 dark:text-slate-600" />}
+                      {i < pathParts?.length - 1 && <ChevronLeft size={10} className="text-slate-300 dark:text-slate-600" />}
                     </span>
                   ))}
                 </div>
@@ -160,7 +160,7 @@ export default function ProductDetail({ product, onClose, onEdit, onDelete }: Pr
                       <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{details?.size}</p>
                     </div>
                   )}
-                  {details.length_cm && (
+                  {details?.length_cm && (
                     <div>
                       <p className="text-xs text-slate-400 dark:text-slate-500 mb-0.5">الطول</p>
                       <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{details.length_cm} سم</p>
@@ -210,7 +210,7 @@ export default function ProductDetail({ product, onClose, onEdit, onDelete }: Pr
             </div>
 
             <p className="text-xs text-slate-300 dark:text-slate-600" dir="ltr">
-              أُضيف: {new Date(details.created_at).toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' })}
+              أُضيف: {new Date(details?.created_at).toLocaleDateString('ar-EG', { year: 'numeric', month: 'long', day: 'numeric' })}
             </p>
           </div>
         </div>
