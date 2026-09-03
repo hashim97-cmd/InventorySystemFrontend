@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import NextAppShell from './NextAppShell';
-import ReportsPage from '../pages/ReportsPage';
-import ProductDetail from '../pages/ProductDetail';
-import ProductForm from '../pages/ProductForm';
+import ReportsPage from '../screens/ReportsPage';
+import ProductDetail from '../screens/ProductDetail';
+import ProductForm from '../screens/ProductForm';
 import { Product } from '../lib/supabase';
 import { getProduct } from '../lib/api';
 

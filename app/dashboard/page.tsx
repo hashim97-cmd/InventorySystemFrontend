@@ -2,7 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import NextAppShell from '../../src/components/NextAppShell';
-import Dashboard from '../../src/pages/Dashboard';
+import Dashboard from '../../src/screens/Dashboard';
 
 export default function DashboardRoute() {
     const router = useRouter();
