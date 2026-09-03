@@ -223,7 +223,7 @@ export default function ProductDetail({ product, onClose, onEdit, onDelete }: Pr
                 <AlertTriangle size={26} className="text-red-500 dark:text-red-400" />
               </div>
               <h3 className="font-bold text-slate-800 dark:text-slate-100 text-lg mb-2">تأكيد الحذف</h3>
-              <p className="text-slate-500 dark:text-slate-400 text-sm mb-5">"{product.name}"</p>
+              <p className="text-slate-500 dark:text-slate-400 text-sm mb-5">"{product?.name}"</p>
               <div className="flex gap-3 justify-center">
                 <button onClick={() => setConfirmDelete(false)} className="btn-secondary">إلغاء</button>
                 <button onClick={handleDelete} disabled={deleting} className="bg-red-600 text-white px-4 py-2 rounded-xl hover:bg-red-700 font-semibold text-sm flex gap-2 items-center disabled:opacity-50">
