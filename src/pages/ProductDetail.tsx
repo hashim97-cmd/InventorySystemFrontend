@@ -33,8 +33,8 @@ export default function ProductDetail({ product, onClose, onEdit, onDelete }: Pr
     onDelete();
   }
 
-  const status = getStockStatus(details.quantity);
-  const path = getCategoryPath(details.category_id, categories);
+  const status = getStockStatus(details?.quantity);
+  const path = getCategoryPath(details?.category_id, categories);
   const pathParts = path !== '—' ? path.split(' > ') : [];
 
   return (
@@ -74,8 +74,8 @@ export default function ProductDetail({ product, onClose, onEdit, onDelete }: Pr
             <div className="grid grid-cols-2 gap-2 mt-3">
               <div className="bg-slate-50 dark:bg-slate-700 rounded-xl p-3 text-center border border-slate-100 dark:border-slate-600">
                 <p className="text-xs text-slate-400 dark:text-slate-500 mb-0.5">الكمية</p>
-                <p className="text-xl font-bold text-slate-800 dark:text-slate-100">{details.quantity.toLocaleString('ar-EG')}</p>
-                <p className="text-xs text-slate-400 dark:text-slate-500">{details.unit}</p>
+                <p className="text-xl font-bold text-slate-800 dark:text-slate-100">{details?.quantity.toLocaleString('ar-EG')}</p>
+                <p className="text-xs text-slate-400 dark:text-slate-500">{details?.unit}</p>
               </div>
               <div className="bg-slate-50 dark:bg-slate-700 rounded-xl p-3 text-center border border-slate-100 dark:border-slate-600">
                 <p className="text-xs text-slate-400 dark:text-slate-500 mb-0.5">الحالة</p>
@@ -119,45 +119,45 @@ export default function ProductDetail({ product, onClose, onEdit, onDelete }: Pr
               <div className="grid grid-cols-3 gap-4">
                 <div>
                   <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">السعر الأساسي</p>
-                  <p className="text-lg font-bold text-slate-700 dark:text-slate-200">{details.base_price.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج</p>
+                  <p className="text-lg font-bold text-slate-700 dark:text-slate-200">{details?.base_price.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج</p>
                 </div>
                 <div>
                   <p className="text-xs text-slate-400 dark:text-slate-500 mb-1">نسبة الربح</p>
-                  <p className="text-lg font-bold text-slate-700 dark:text-slate-200">{details.margin_pct}%</p>
+                  <p className="text-lg font-bold text-slate-700 dark:text-slate-200">{details?.margin_pct}%</p>
                 </div>
                 <div>
                   <p className="text-xs text-teal-500 dark:text-teal-400 mb-1">السعر النهائي</p>
-                  <p className="text-xl font-bold text-teal-600 dark:text-teal-400">{details.final_price.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج</p>
+                  <p className="text-xl font-bold text-teal-600 dark:text-teal-400">{details?.final_price.toLocaleString('ar-EG', { minimumFractionDigits: 2 })} ج</p>
                 </div>
               </div>
               <div className="mt-3 pt-3 border-t border-teal-100 dark:border-teal-800/50">
                 <p className="text-xs text-slate-500 dark:text-slate-400">
                   قيمة المخزون الإجمالية:
                   <span className="font-bold text-slate-700 dark:text-slate-200 mr-1">
-                    {(details.final_price * details.quantity).toLocaleString('ar-EG', { maximumFractionDigits: 2 })} ج
+                    {(details?.final_price * details?.quantity).toLocaleString('ar-EG', { maximumFractionDigits: 2 })} ج
                   </span>
                 </p>
               </div>
             </div>
 
             {/* Specs */}
-            {(details.length_cm || details.width_cm || details.height_cm || details.size || details.unit || details.color) && (
+            {(details?.length_cm || details?.width_cm || details?.height_cm || details?.size || details?.unit || details?.color) && (
               <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 border border-slate-100 dark:border-slate-700">
                 <div className="flex items-center gap-2 mb-3">
                   <Ruler size={14} className="text-slate-500 dark:text-slate-400" />
                   <span className="text-sm font-bold text-slate-700 dark:text-slate-200">المواصفات</span>
                 </div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                  {details.unit && (
+                  {details?.unit && (
                     <div>
                       <p className="text-xs text-slate-400 dark:text-slate-500 mb-0.5">وحدة القياس</p>
-                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{details.unit}</p>
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{details?.unit}</p>
                     </div>
                   )}
-                  {details.size && (
+                  {details?.size && (
                     <div>
                       <p className="text-xs text-slate-400 dark:text-slate-500 mb-0.5">الحجم</p>
-                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{details.size}</p>
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{details?.size}</p>
                     </div>
                   )}
                   {details.length_cm && (
@@ -166,26 +166,26 @@ export default function ProductDetail({ product, onClose, onEdit, onDelete }: Pr
                       <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{details.length_cm} سم</p>
                     </div>
                   )}
-                  {details.width_cm && (
+                  {details?.width_cm && (
                     <div>
                       <p className="text-xs text-slate-400 dark:text-slate-500 mb-0.5">العرض</p>
-                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{details.width_cm} سم</p>
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{details?.width_cm} سم</p>
                     </div>
                   )}
-                  {details.height_cm && (
+                  {details?.height_cm && (
                     <div>
                       <p className="text-xs text-slate-400 dark:text-slate-500 mb-0.5">الارتفاع</p>
-                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{details.height_cm} سم</p>
+                      <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">{details?.height_cm} سم</p>
                     </div>
                   )}
                 </div>
               </div>
             )}
 
-            {(details.color || details.descrption) && (
+            {(details?.color || details?.descrption) && (
               <div className="bg-slate-50 dark:bg-slate-700/50 rounded-xl p-4 border border-slate-100 dark:border-slate-700 space-y-3">
-                {details.color && <p className="text-sm text-slate-600 dark:text-slate-300"><span className="font-bold">اللون:</span> {details.color}</p>}
-                {details.descrption && <p className="text-sm text-slate-600 dark:text-slate-300"><span className="font-bold">الوصف:</span> {details.descrption}</p>}
+                {details?.color && <p className="text-sm text-slate-600 dark:text-slate-300"><span className="font-bold">اللون:</span> {details?.color}</p>}
+                {details?.descrption && <p className="text-sm text-slate-600 dark:text-slate-300"><span className="font-bold">الوصف:</span> {details?.descrption}</p>}
               </div>
             )}
 
